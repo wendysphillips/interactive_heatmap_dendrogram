@@ -173,11 +173,30 @@ create_zoom_heatmap <- function() {
         mutate(row_order = as.integer(nrow(df_matrix) + 1 - x)) |>
         select(-x)
 
+      # Calculate min and max values for color scale
+      min_val <- min(df_long2$value, na.rm = TRUE)
+      max_val <- max(df_long2$value, na.rm = TRUE)
+
       list(
         df_long = df_long2,
         dend_data = dend_data,
-        nrows = nrow(df_matrix)
+        nrows = nrow(df_matrix),
+        min_val = min_val,
+        max_val = max_val
       )
+    })
+
+    # Create custom color function
+    create_color_scale <- reactive({
+      plot_info <- plot_data()
+      min_val <- plot_info$min_val
+      max_val <- plot_info$max_val
+
+      # Define color breakpoints and colors
+      breaks <- c(min_val, min_val / 2, 0, max_val / 2, max_val)
+      colors <- c("darkblue", "lightblue", "white", "orange", "darkred")
+
+      list(breaks = breaks, colors = colors)
     })
 
     output$heatmap_plot <- renderPlot({
@@ -185,6 +204,7 @@ create_zoom_heatmap <- function() {
       df_long2 <- plot_info$df_long
       dend_data <- plot_info$dend_data
       nrows <- plot_info$nrows
+      color_scale <- create_color_scale()
 
       # Create dendrogram plot with inverted y-coordinates and cluster coloring
       dend_data_inverted <- dend_data
@@ -258,9 +278,9 @@ create_zoom_heatmap <- function() {
         )
       }
 
-      # Create heatmap plot with conditional y-axis guide numbers
+      # Create heatmap plot with custom color scale
       p_heatmap <- ggplot(df_long2, aes(x = name, y = row_order, fill = value)) +
-        geom_tile(color = "white", size = 0.1) + # Add borders to see missing tiles
+        geom_tile(size = 0.1) +
         scale_y_continuous(
           limits = c(0.5, nrows + 0.5),
           expand = c(0, 0),
@@ -296,7 +316,12 @@ create_zoom_heatmap <- function() {
           }
         ) +
         coord_cartesian(clip = "off") +
-        scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0, na.value = "grey90") +
+        scale_fill_gradientn(
+          colors = color_scale$colors,
+          values = scales::rescale(color_scale$breaks),
+          na.value = "grey90",
+          name = "Value"
+        ) +
         theme_void() +
         theme(
           axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
@@ -308,7 +333,7 @@ create_zoom_heatmap <- function() {
             r = 30,
             b = 0,
             l = if (!is.null(ranges$y)) 0 else 20, unit = "mm"
-          ) # Adjust margin based on zoom
+          )
         ) +
         labs(fill = "Value", y = if (!is.null(ranges$y)) NULL else "Row")
 
@@ -450,6 +475,7 @@ create_zoom_heatmap <- function() {
         df_long2 <- plot_info$df_long
         dend_data <- plot_info$dend_data
         nrows <- plot_info$nrows
+        color_scale <- create_color_scale()
 
         # Create dendrogram plot with inverted y-coordinates and cluster coloring
         dend_data_inverted <- dend_data
@@ -523,9 +549,9 @@ create_zoom_heatmap <- function() {
           )
         }
 
-        # Create heatmap plot with conditional y-axis guide numbers
+        # Create heatmap plot with custom color scale
         p_heatmap <- ggplot(df_long2, aes(x = name, y = row_order, fill = value)) +
-          geom_tile(color = "white", size = 0.1) + # Add borders to see missing tiles
+          geom_tile(size = 0.1) +
           scale_y_continuous(
             limits = c(0.5, nrows + 0.5),
             expand = c(0, 0),
@@ -561,12 +587,11 @@ create_zoom_heatmap <- function() {
             }
           ) +
           coord_cartesian(clip = "off") +
-          scale_fill_gradient2(
-            low = "blue",
-            mid = "white",
-            high = "red",
-            midpoint = 0,
-            na.value = "grey90"
+          scale_fill_gradientn(
+            colors = color_scale$colors,
+            values = scales::rescale(color_scale$breaks),
+            na.value = "grey90",
+            name = "Value"
           ) +
           theme_void() +
           theme(
@@ -592,7 +617,7 @@ create_zoom_heatmap <- function() {
             plot.margin = margin(
               t = 0, r = 30, b = 0, l = if (!is.null(ranges$y)) 0 else 20,
               unit = "mm"
-            ) # Adjust margin based on zoom
+            )
           ) +
           labs(fill = "Value", y = if (!is.null(ranges$y)) NULL else "Row")
 
