@@ -41,7 +41,7 @@ create_zoom_heatmap <- function() {
     sidebarLayout(
       sidebarPanel(
         selectInput("distance_method", "Distance Method:",
-          choices = c("manhattan", "euclidean", "maximum", "binary"),
+          choices = c("manhattan", "euclidean", "maximum", "binary", "correlation", "cosine"),
           selected = "euclidean"
         ),
         selectInput("cluster_method", "Clustering Method:",
@@ -81,7 +81,7 @@ create_zoom_heatmap <- function() {
       ),
       mainPanel(
         plotOutput("heatmap_plot",
-          height = "800px"
+          height = "900px"
         ),
         width = 9
       )
@@ -115,13 +115,33 @@ create_zoom_heatmap <- function() {
       } else {
         df_matrix <- df
       }
-
-      # Calculate distance matrices and hierarchical clustering
-      row_dist <- dist(df_matrix, method = input$distance_method)
-      col_dist <- dist(t(df_matrix), method = input$distance_method)
+      
+      # Calculate distance matrices based on method
+      if (input$distance_method == "correlation") {
+        # Correlation distance (1 - correlation)
+        row_dist <- as.dist(1 - cor(t(df_matrix), use = "complete.obs"))
+        col_dist <- as.dist(1 - cor(df_matrix, use = "complete.obs"))
+      } else if (input$distance_method == "cosine") {
+        # Cosine distance
+        cosine_dist <- function(x) {
+          # Normalize rows to unit vectors
+          x_norm <- x / sqrt(rowSums(x^2))
+          # Calculate cosine similarity matrix
+          cos_sim <- tcrossprod(x_norm)
+          # Convert to distance (1 - similarity)
+          as.dist(1 - cos_sim)
+        }
+        row_dist <- cosine_dist(df_matrix)
+        col_dist <- cosine_dist(t(df_matrix))
+      } else {
+        # Standard dist() methods
+        row_dist <- dist(df_matrix, method = input$distance_method)
+        col_dist <- dist(t(df_matrix), method = input$distance_method)
+      }
+      
       row_hclust <- hclust(row_dist, method = input$cluster_method)
       col_hclust <- hclust(col_dist, method = input$cluster_method)
-
+      
       list(
         df = df_matrix,
         row_hclust = row_hclust,
@@ -194,7 +214,7 @@ create_zoom_heatmap <- function() {
 
       # Define color breakpoints and colors
       breaks <- c(min_val, min_val / 2, 0, max_val / 2, max_val)
-      colors <- c("darkblue", "lightblue", "white", "orange", "darkred")
+      colors <- c("darkslateblue", "steelblue1", "white", "salmon", "maroon4")
 
       list(breaks = breaks, colors = colors)
     })
@@ -205,6 +225,11 @@ create_zoom_heatmap <- function() {
       dend_data <- plot_info$dend_data
       nrows <- plot_info$nrows
       color_scale <- create_color_scale()
+
+      # Calculate dynamic spacing based on maximum gene name length
+      max_gene_length <- max(nchar(as.character(dend_data$labels$label)))
+      # Base spacing: 1.25mm per character, minimum 15mm, maximum 50mm
+      dendro_left_margin <- min(50, max(15, max_gene_length * 1.25))
 
       # Create dendrogram plot with inverted y-coordinates and cluster coloring
       dend_data_inverted <- dend_data
@@ -259,7 +284,7 @@ create_zoom_heatmap <- function() {
           axis.text.y = element_blank(),
           axis.text.x = element_text(color = "black", size = 10),
           axis.title.x = element_text(color = "black", size = 12),
-          plot.margin = unit(c(0, 0, 15, 0), "mm"),
+          plot.margin = unit(c(0, 0, 15, dendro_left_margin), "mm"),
           legend.position = "none"
         ) +
         scale_y_continuous(limits = c(0.5, nrows + 0.5), expand = c(0, 0)) +
@@ -332,7 +357,7 @@ create_zoom_heatmap <- function() {
             t = 0,
             r = 30,
             b = 0,
-            l = if (!is.null(ranges$y)) 0 else 20, unit = "mm"
+            l = if (!is.null(ranges$y)) 10 else 20, unit = "mm"
           )
         ) +
         labs(fill = "Value", y = if (!is.null(ranges$y)) NULL else "Row")
@@ -370,8 +395,9 @@ create_zoom_heatmap <- function() {
         p_dendro <- p_dendro + ylim(y_min_internal - 0.5, y_max_internal + 0.5)
       }
 
-      # Combine plots - adjusted widths to account for y-axis labels
-      wrap_plots(p_heatmap, p_dendro, nrow = 1, widths = c(1, 2))
+      # Combine plots with dynamic width ratio based on gene name length
+      dendro_width_ratio <- if (max_gene_length <= 10) 1.5 else if (max_gene_length <= 20) 2.0 else 2.5
+      wrap_plots(p_heatmap, p_dendro, nrow = 1, widths = c(1, dendro_width_ratio))
     })
 
     # Apply Y-axis zoom based on numeric inputs
@@ -477,6 +503,10 @@ create_zoom_heatmap <- function() {
         nrows <- plot_info$nrows
         color_scale <- create_color_scale()
 
+        # Calculate dynamic spacing based on maximum gene name length
+        max_gene_length <- max(nchar(as.character(dend_data$labels$label)))
+        dendro_left_margin <- min(50, max(15, max_gene_length * 1.25))
+
         # Create dendrogram plot with inverted y-coordinates and cluster coloring
         dend_data_inverted <- dend_data
         # Force dendrogram coordinates to integers to match heatmap
@@ -530,7 +560,7 @@ create_zoom_heatmap <- function() {
             axis.text.y = element_blank(),
             axis.text.x = element_text(color = "black", size = 10),
             axis.title.x = element_text(color = "black", size = 12),
-            plot.margin = unit(c(0, 0, 15, 0), "mm"),
+            plot.margin = unit(c(0, 0, 15, dendro_left_margin), "mm"),
             legend.position = "none"
           ) +
           scale_y_continuous(limits = c(0.5, nrows + 0.5), expand = c(0, 0)) +
@@ -615,7 +645,7 @@ create_zoom_heatmap <- function() {
             },
             legend.position = "left",
             plot.margin = margin(
-              t = 0, r = 30, b = 0, l = if (!is.null(ranges$y)) 0 else 20,
+              t = 0, r = 30, b = 0, l = if (!is.null(ranges$y)) 10 else 20,
               unit = "mm"
             )
           ) +
@@ -635,11 +665,13 @@ create_zoom_heatmap <- function() {
           p_dendro <- p_dendro + ylim(y_min_internal - 0.5, y_max_internal + 0.5)
         }
 
-        # Combine plots - adjusted widths to account for y-axis labels
-        combined_plot <- wrap_plots(p_heatmap, p_dendro, nrow = 1, widths = c(1, 2))
+        # Combine plots with dynamic width ratio
+        dendro_width_ratio <- if (max_gene_length <= 10) 1.5 else if (max_gene_length <= 20) 2.0 else 2.5
+        combined_plot <- wrap_plots(p_heatmap, p_dendro, nrow = 1, widths = c(1, dendro_width_ratio))
 
-        # Save the plot as PNG
-        ggsave(file, combined_plot, width = 16, height = 10, dpi = 300, units = "in")
+        # Save with dynamic width based on gene name length
+        plot_width <- if (max_gene_length <= 10) 14 else if (max_gene_length <= 20) 16 else 18
+        ggsave(file, combined_plot, width = plot_width, height = 10, dpi = 300, units = "in")
       }
     )
   }
