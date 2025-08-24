@@ -6,7 +6,7 @@ An interactive R Shiny application for exploring hierarchical clustering pattern
 
 This application combines hierarchical clustering dendrograms with interactive heatmaps to provide a comprehensive visualization of high-dimensional data patterns. Users can simultaneously explore both the clustering structure (via dendrogram) and the underlying data values (via heatmap) with synchronized zooming, cluster visualization, and multiple export options. The application is designed to handle any numerical dataset suitable for hierarchical clustering analysis.
 
-The example data provided for application exploration was sourced from this publication: https://doi.org/10.1126/sciadv.abf5733. Lopes, et. al. 2021. Systematic dissection of transcriptional regulatory networks by genome-scale and single-cell CRISPR screens. Science Advances.
+The example data provided for application exploration was sourced from this publication: https://doi.org/10.1126/sciadv.abf5733. Lopes, et al. 2021. Systematic dissection of transcriptional regulatory networks by genome-scale and single-cell CRISPR screens. Science Advances.
 
 ## Features
 
